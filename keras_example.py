@@ -315,29 +315,34 @@ dev = qml.device("default.qubit", wires=number_qubits)
 #for s in range(size):
     #inputs.append(Parameter('θ' + str(s)))
     #weights.append(Parameter('ϕ' + str(s)))
+theta0 = Parameter('θ0')
+theta1 = Parameter('θ1')
 theta2 = Parameter('θ2')
 theta3 = Parameter('θ3')
-theta4 = Parameter('θ4')
+w0 = Parameter('ϕ0')
+w1 = Parameter('ϕ1')
 w2 = Parameter('ϕ2')
 w3 = Parameter('ϕ3')
-w4 = Parameter('ϕ4')
 # TODO: Normalize weights and inputs to be between [0, pi / 2]
 # TODO: Figure out how MCPhaseGate works -> replace CPhase-Gate (cu1) with this and Toffoli with Multi-controlled CNOT and use 4 qubits, Input-Size 16 instead
 qc = QuantumCircuit(number_qubits)
 # apply Hadamard gate to all regular qubits to create a superposition
 for i in range(number_regular_qubits):
     qc.h(i)
+qc.barrier()
 # loop over all inputs in inputvector to encode them to the right base states using phase-shifts
-for index in range(1, number_regular_qubits):
+for index in range(size):
     #value = inputs[index] - inputs[0]
-    if index == 1:
-        value = theta2
+    if index == 0:
+        value = theta0
+    elif index == 1:
+        value = theta1
     elif index == 2:
-        value = theta3
+        value = theta2
     elif index == 3:
-        value = theta4
+        value = theta3
     # index as binary number
-    binary = str(bin(index))
+    binary = '{0:02b}'.format(index)
     # get qubit at digit in binary state (positions of qubits : q0, q1, q2, q3) (figuratively, not actually, we are in superposition after all)
     for j in range(len(binary)):
         if binary[j] == '0':
@@ -350,17 +355,20 @@ for index in range(1, number_regular_qubits):
     for j in range(len(binary)):
         if binary[j] == '0':
             qc.x(j)
+    qc.barrier()
 # loop over weights
-for w in range(1, number_regular_qubits):
+for w in range(size):
     #value = weights[w] - weights[0]
+    if w == 0:
+        value = w0
     if w == 1:
-        value = w2
+        value = w1
     elif w == 2:
-        value = w3
+        value = w2
     elif w == 3:
-        value = w4
+        value = w3
     # index as binary number
-    binary = str(bin(w))
+    binary = '{0:02b}'.format(w)
     # get qubit at digit in binary state (positions of qubits : q0, q1, q2, q3) (figuratively, not actually, we are in superposition after all)
     for j in range(len(binary)):
         if binary[j] == '0':
@@ -373,12 +381,15 @@ for w in range(1, number_regular_qubits):
     for j in range(len(binary)):
         if binary[j] == '0':
             qc.x(j)
+    qc.barrier()
 # apply Hadamard gate to all regular qubits
 for i in range(number_regular_qubits):
     qc.h(i)
+qc.barrier()
 # apply X gate to all regular qubits
 for i in range(number_regular_qubits):
     qc.x(i)
+qc.barrier()
 # collect combined state from all regular qubits with ancilla qubit using multi-controlled NOT-gate (Toffoli-Gate in case of 2 regular qubits)
 qc.ccx(0, 1, 2)
 # draw circuit
@@ -392,13 +403,16 @@ ancilla = number_qubits - 1
 # TODO: Turn this into actual code
 @qml.qnode(dev)
 def qnode(inputs, weights):
-    input_list = []
-    weight_list = []
-    for i in range(1, size):
-        input_list.append(inputs[i] - inputs[0])
-        weight_list.append(weights[i] - weights[0])
+    #input_list = []
+    #weight_list = []
+    #for i in range(1, size):
+        #input_list.append(inputs[i] - inputs[0])
+        #weight_list.append(weights[i] - weights[0])
+    inputs = inputs.numpy()
+    weights = weights.numpy()
     # run qiskit circuit
-    qml.from_qiskit(qc)({theta2: input_list[0], theta3: input_list[1], theta4: input_list[2], w2: weight_list[0], w3: weight_list[1], w4: weight_list[2]})
+    qc.bind_parameters({theta0: inputs[0], theta1: inputs[1], theta2: inputs[2], theta3: inputs[3], w0: weights[0], w1: weights[1], w2: weights[2], w3: weights[3]})
+    qml.from_qiskit(qc)
     # measure ancilla-qubit
     # TODO: Try out whether expectation value (expval) or sample value (sample) of the qubit works better
     return qml.expval(qml.PauliZ(ancilla))

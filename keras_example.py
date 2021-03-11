@@ -298,6 +298,7 @@ import pennylane as qml
 from qiskit import QuantumCircuit
 from qiskit.circuit import Parameter
 from qiskit.circuit.library import MCPhaseGate
+import matplotlib
 
 # 2 regular qubits, 1 ancilla
 number_qubits = 3
@@ -315,11 +316,9 @@ dev = qml.device("default.qubit", wires=number_qubits)
 #for s in range(size):
     #inputs.append(Parameter('θ' + str(s)))
     #weights.append(Parameter('ϕ' + str(s)))
-theta0 = Parameter('θ0')
 theta1 = Parameter('θ1')
 theta2 = Parameter('θ2')
 theta3 = Parameter('θ3')
-w0 = Parameter('ϕ0')
 w1 = Parameter('ϕ1')
 w2 = Parameter('ϕ2')
 w3 = Parameter('ϕ3')
@@ -331,11 +330,8 @@ for i in range(number_regular_qubits):
     qc.h(i)
 qc.barrier()
 # loop over all inputs in inputvector to encode them to the right base states using phase-shifts
-for index in range(size):
-    #value = inputs[index] - inputs[0]
-    if index == 0:
-        value = theta0
-    elif index == 1:
+for index in range(1, size):
+    if index == 1:
         value = theta1
     elif index == 2:
         value = theta2
@@ -357,10 +353,7 @@ for index in range(size):
             qc.x(j)
     qc.barrier()
 # loop over weights
-for w in range(size):
-    #value = weights[w] - weights[0]
-    if w == 0:
-        value = w0
+for w in range(1, size):
     if w == 1:
         value = w1
     elif w == 2:
@@ -393,25 +386,23 @@ qc.barrier()
 # collect combined state from all regular qubits with ancilla qubit using multi-controlled NOT-gate (Toffoli-Gate in case of 2 regular qubits)
 qc.ccx(0, 1, 2)
 # draw circuit
-qc.draw()
+qc.draw(output='mpl', filename="circuit.png")
 # end qiskit circuit
 
 
-weight_shapes = {"weights": size}
+weight_shapes = {"weights": (size - 1)}
 # index of ancilla-qubit
 ancilla = number_qubits - 1
 # TODO: Turn this into actual code
 @qml.qnode(dev)
 def qnode(inputs, weights):
-    #input_list = []
-    #weight_list = []
-    #for i in range(1, size):
-        #input_list.append(inputs[i] - inputs[0])
-        #weight_list.append(weights[i] - weights[0])
     inputs = inputs.numpy()
     weights = weights.numpy()
+    input_list = []
+    for i in range(1, size):
+        input_list.append(inputs[i] - inputs[0])
     # run qiskit circuit
-    qc.bind_parameters({theta0: inputs[0], theta1: inputs[1], theta2: inputs[2], theta3: inputs[3], w0: weights[0], w1: weights[1], w2: weights[2], w3: weights[3]})
+    qc.bind_parameters({theta1: input_list[0], theta2: input_list[1], theta3: input_list[2], w1: weights[0], w2: weights[1], w3: weights[2]})
     qml.from_qiskit(qc)
     # measure ancilla-qubit
     # TODO: Try out whether expectation value (expval) or sample value (sample) of the qubit works better

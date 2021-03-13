@@ -377,7 +377,8 @@ for index in range(1, size):
     # this_phase_gate = MCPhaseGate(value, 3, label="this_phase_gate")
     # qc.this_phase_gate(0, 1, 2, 3)
     # perform controlled phase shift (for more qubits probably possible using ControlledGate() and MatrixGate()
-    insert_list.append(cphase(inputs[index - 1])(*regular_qubits))
+    value = inputs[index - 1]
+    insert_list.append(cphase(value)(*regular_qubits))
     # "undo" the NOT-gates to get back to previous states = apply another not
     for j in range(len(binary)):
         if binary[j] == '0':
@@ -395,7 +396,8 @@ for w in range(1, size):
     # this_phase_gate = MCPhaseGate(value, 3, label="this_phase_gate")
     # qc.this_phase_gate(0, 1, 2, 3)
     # perform conjugate transpose controlled phase shift
-    insert_list.append(cphase(-1 * weights[w - 1])(*regular_qubits))
+    value = -1 * weights[w - 1]
+    insert_list.append(cphase(value)(*regular_qubits))
     # "undo" the NOT-gates to get back to previous states = apply another not
     for j in range(len(binary)):
         if binary[j] == '0':
@@ -425,8 +427,8 @@ x = layers.Dense(32, activation="relu")(all_features)
 x = layers.Dropout(0.5)(x)
 x = layers.Dense(4, activation="relu")(x)
 x = layers.Dropout(0.5)(x)
-#expectation = SplitBackpropQ(control_params, control_params1, int_values, measurement)([unused, x])
-expectation = layers.Dense(1, activation="sigmoid")(x)
+expectation = SplitBackpropQ(control_params, control_params1, int_values, measurement)([unused, x])
+#expectation = layers.Dense(1, activation="sigmoid")(x)
 model = keras.Model(inputs=[unused, all_inputs], outputs=expectation)
 model.compile("adam", "binary_crossentropy", metrics=["accuracy"])
 

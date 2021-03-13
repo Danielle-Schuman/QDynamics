@@ -412,7 +412,8 @@ SVGCircuit(qc)
 # end circuit
 
 # values to initialize the weights (?)
-int_values=np.random.rand((len(control_params1)))*np.pi
+np.random.seed(seed=69)
+int_values = np.random.rand((len(control_params1)))*np.pi
 
 measurement = [Z(ancilla)]
 
@@ -439,8 +440,9 @@ model.summary()
 """
 ## Train the model
 """
-
-model.fit(train_ds, epochs=50, validation_data=val_ds)
+n = train_ds.cardinality().numpy()
+n_val = val_ds.cardinality().numpy()
+model.fit([tfq.convert_to_tensor([qc for _ in range(n)]), train_ds], epochs=50, validation_data=[tfq.convert_to_tensor([qc for _ in range(n_val)]), val_ds])
 
 """
 We quickly get to 80% validation accuracy.

@@ -114,8 +114,8 @@ for x, y in train_ds.take(1):
 Let's batch the datasets:
 """
 
-train_ds = train_ds.batch(32)
-val_ds = val_ds.batch(32)
+#train_ds = train_ds.batch(32)
+#val_ds = val_ds.batch(32)
 
 """
 ## Feature preprocessing with Keras layers
@@ -441,9 +441,29 @@ model.summary()
 """
 ## Train the model
 """
-n = train_ds.cardinality().numpy()
-n_val = val_ds.cardinality().numpy()
-model.fit([tfq.convert_to_tensor([qc for _ in range(n)]), train_ds], epochs=50, validation_data=[tfq.convert_to_tensor([qc for _ in range(n_val)]), val_ds])
+x_train = []
+y_train = []
+for x, y in train_ds:
+    x_train.append(x)
+    y_train.append(y)
+x_train = tf.convert_to_tensor(x_train)
+y_train = tf.convert_to_tensor(y_train)
+
+x_val = []
+y_val = []
+for x, y in val_ds:
+    x_val.append(x)
+    y_val.append(y)
+x_val = tf.convert_to_tensor(x_val)
+y_val = tf.convert_to_tensor(y_val)
+
+#n = train_ds.cardinality().numpy()
+#n_val = val_ds.cardinality().numpy()
+
+n = x_train.shape[0]
+n_val = x_val.shape[0]
+
+model.fit(x=[tfq.convert_to_tensor([qc for _ in range(n)]), x_train], y=y_train, epochs=50, batch_size=32, validation_data=([tfq.convert_to_tensor([qc for _ in range(n_val)]), x_val], y_val), validation_batch_size=32)
 
 """
 We quickly get to 80% validation accuracy.

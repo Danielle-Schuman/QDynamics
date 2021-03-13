@@ -49,9 +49,6 @@ import pandas as pd
 from tensorflow import keras
 from tensorflow.keras import layers
 
-# TODO: Also disable eager execution in actual code?
-tf.config.run_functions_eagerly(False)
-
 
 """
 ## Preparing the data
@@ -386,14 +383,15 @@ qc.barrier()
 # collect combined state from all regular qubits with ancilla qubit using multi-controlled NOT-gate (Toffoli-Gate in case of 2 regular qubits)
 qc.ccx(0, 1, 2)
 # draw circuit
-qc.draw(output='mpl', filename="circuit.png")
+qc.draw(output='mpl', filename="circuit.png", plot_barriers=False)
 # end qiskit circuit
 
 
 weight_shapes = {"weights": (size - 1)}
 # index of ancilla-qubit
 ancilla = number_qubits - 1
-# TODO: Turn this into actual code
+
+
 @qml.qnode(dev)
 def qnode(inputs, weights):
     inputs = inputs.numpy()

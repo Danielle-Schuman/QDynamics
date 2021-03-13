@@ -444,7 +444,10 @@ model.summary()
 x_train = []
 y_train = []
 for x, y in train_ds:
-    x_train.append(x)
+    x_new = []
+    for value in x.values():
+        x_new.append(value)
+    x_train.append(x_new)
     y_train.append(y)
 x_train = tf.convert_to_tensor(x_train)
 y_train = tf.convert_to_tensor(y_train)
@@ -452,7 +455,10 @@ y_train = tf.convert_to_tensor(y_train)
 x_val = []
 y_val = []
 for x, y in val_ds:
-    x_val.append(x)
+    x_new = []
+    for value in x.values():
+        x_new.append(value)
+    x_val.append(x_new)
     y_val.append(y)
 x_val = tf.convert_to_tensor(x_val)
 y_val = tf.convert_to_tensor(y_val)

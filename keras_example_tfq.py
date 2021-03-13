@@ -293,7 +293,7 @@ all_features = layers.concatenate(
 # TFQ / Cirq code for quantum layer: 1 node, input-vector-length = 4 (TODO: make 16)
 import tensorflow_quantum as tfq
 import cirq
-from cirq import H, X, cphase, CCX, Z
+from cirq import H, X, cphase, CNOT, Z, T
 from cirq.circuits import InsertStrategy
 import sympy
 import matplotlib.pyplot as plt
@@ -341,7 +341,7 @@ class SplitBackpropQ(tf.keras.layers.Layer):
 
 
 # TODO: Normalize weights and inputs to be between [0, pi / 2]
-# TODO: replace CPhase-Gate with Multi-controlled Phase gate and Toffoli with Multi-controlled CNOT and use 4 qubits, Input-Size 16 instead
+# TODO: replace CPhase-Gate with Multi-controlled Phase gate and use 4 qubits, Input-Size 16 instead
 # 2 regular qubits, 1 ancilla
 number_qubits = 3
 number_regular_qubits = number_qubits - 1
@@ -356,17 +356,17 @@ control_params1 = sympy.symbols('w0, w1, w2, w3')
 qc = cirq.Circuit()
 size = len(regular_qubits) ** 2
 # subtract first input from other inputs to save gates
-inputs = []
-for i in range(1, size):
-    inputs.append(control_params[i] - control_params[0])
+#inputs = []
+#for i in range(1, size):
+    #inputs.append(control_params[i] - control_params[0])
 # do the same for weights
-weights = []
-for i in range(1, size):
-    weights.append(control_params1[i] - control_params1[0])
+#weights = []
+#for i in range(1, size):
+    #weights.append(control_params1[i] - control_params1[0])
 # apply Hadamard gate to all regular qubits to create a superposition
 qc.append(H.on_each(*regular_qubits))
 # loop over all inputs in inputvector to encode them to the right base states using phase-shifts
-for index in range(1, size):
+for index in range(size):
     insert_list = []
     # index as binary number
     binary = '{0:02b}'.format(index)
@@ -377,15 +377,14 @@ for index in range(1, size):
     # this_phase_gate = MCPhaseGate(value, 3, label="this_phase_gate")
     # qc.this_phase_gate(0, 1, 2, 3)
     # perform controlled phase shift (for more qubits probably possible using ControlledGate() and MatrixGate()
-    value = inputs[index - 1]
-    insert_list.append(cphase(value)(*regular_qubits))
+    insert_list.append(cphase(control_params[index])(*regular_qubits))
     # "undo" the NOT-gates to get back to previous states = apply another not
     for j in range(len(binary)):
         if binary[j] == '0':
             insert_list.append(X(regular_qubits[j]))
     qc.append(insert_list, strategy=InsertStrategy.NEW_THEN_INLINE)
 # loop over weights
-for w in range(1, size):
+for w in range(size):
     insert_list = []
     # index as binary number
     binary = '{0:02b}'.format(w)
@@ -396,8 +395,7 @@ for w in range(1, size):
     # this_phase_gate = MCPhaseGate(value, 3, label="this_phase_gate")
     # qc.this_phase_gate(0, 1, 2, 3)
     # perform conjugate transpose controlled phase shift
-    value = -1 * weights[w - 1]
-    insert_list.append(cphase(value)(*regular_qubits))
+    insert_list.append(cphase((-1) * control_params1[w])(*regular_qubits))
     # "undo" the NOT-gates to get back to previous states = apply another not
     for j in range(len(binary)):
         if binary[j] == '0':
@@ -407,8 +405,9 @@ for w in range(1, size):
 qc.append(H.on_each(*regular_qubits), strategy=InsertStrategy.NEW_THEN_INLINE)
 # apply X gate to all regular qubits
 qc.append(X.on_each(*regular_qubits), strategy=InsertStrategy.NEW_THEN_INLINE)
-# collect combined state from all regular qubits with ancilla qubit using multi-controlled NOT-gate (Toffoli-Gate in case of 2 regular qubits)
-qc.append(CCX(regular_qubits[0], regular_qubits[1], ancilla), strategy=InsertStrategy.NEW_THEN_INLINE)
+# collect combined state from all regular qubits with ancilla qubit using Toffoli-Gate
+# Toffoli-Gate does not work in TFQ -> implement decomposition (compare https://en.wikipedia.org/wiki/Toffoli_gate#/media/File:Qcircuit_ToffolifromCNOT.svg)
+qc.append([H(ancilla), CNOT(regular_qubits[1], ancilla), cirq.inverse(T(ancilla)), CNOT(regular_qubits[0], ancilla), T(ancilla), CNOT(regular_qubits[1], ancilla), cirq.inverse(T(ancilla)), CNOT(regular_qubits[0], ancilla), T(ancilla), T(regular_qubits[1]), H(ancilla), CNOT(regular_qubits[0], regular_qubits[1]), cirq.inverse(T(regular_qubits[1])), T(regular_qubits[0]), CNOT(regular_qubits[0], regular_qubits[1])], strategy=InsertStrategy.NEW_THEN_INLINE)
 # draw circuit
 SVGCircuit(qc)
 # end circuit

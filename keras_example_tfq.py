@@ -299,119 +299,134 @@ import sympy
 import matplotlib.pyplot as plt
 from cirq.contrib.svg import SVGCircuit
 
-# specify cirq circuit
+# adapted from https://github.com/ghellstern/QuantumNN/blob/master/Multi-QBit-Classifier%20TF%20NN-Encoding_Github.ipynb
+class SplitBackpropQ(tf.keras.layers.Layer):
+
+    def __init__(self, upstream_symbols, managed_symbols, managed_init_vals,
+                 operators):
+        """Create a layer that splits backprop between several variables.
+
+
+        Args:
+            upstream_symbols: Python iterable of symbols to bakcprop
+                through this layer.
+            managed_symbols: Python iterable of symbols to backprop
+                into variables managed by this layer.
+            managed_init_vals: Python iterable of initial values
+                for managed_symbols.
+            operators: Python iterable of operators to use for expectation.
+
+        """
+        super().__init__(SplitBackpropQ)
+        self.all_symbols = upstream_symbols + managed_symbols
+        self.upstream_symbols = upstream_symbols
+        self.managed_symbols = managed_symbols
+        self.managed_init = managed_init_vals
+        self.ops = operators
+
+    def build(self, input_shape):
+        self.managed_weights = self.add_weight(
+            shape=(1, len(self.managed_symbols)),
+            initializer=tf.constant_initializer(self.managed_init))
+
+    def call(self, inputs):
+        # inputs are: circuit tensor, upstream values
+        upstream_shape = tf.gather(tf.shape(inputs[0]), 0)
+        tiled_up_weights = tf.tile(self.managed_weights, [upstream_shape, 1])
+        joined_params = tf.concat([inputs[1], tiled_up_weights], 1)
+        return tfq.layers.Expectation()(inputs[0],
+                                        operators=measurement,
+                                        symbol_names=self.all_symbols,
+                                        symbol_values=joined_params)
+
+
 # TODO: Normalize weights and inputs to be between [0, pi / 2]
 # TODO: replace CPhase-Gate with Multi-controlled Phase gate and Toffoli with Multi-controlled CNOT and use 4 qubits, Input-Size 16 instead
-def my_circuit(regular_qubits, ancilla, control_params):
-    qc = cirq.Circuit()
-    size = len(regular_qubits) ** 2
-    # subtract first input from other inputs to save gates
-    inputs = []
-    for i in range(1, size):
-        inputs.append(control_params[i] - control_params[0])
-    # do the same for weights
-    weights = []
-    for i in range(1 + size, size * 2):
-        weights.append(control_params[i] - control_params[size])
-    # apply Hadamard gate to all regular qubits to create a superposition
-    qc.append(H.on_each(*regular_qubits))
-    # loop over all inputs in inputvector to encode them to the right base states using phase-shifts
-    for index in range(1, size):
-        insert_list = []
-        # index as binary number
-        binary = '{0:02b}'.format(index)
-        # get qubit at digit in binary state (positions of qubits : q0, q1, q2, q3) (figuratively, not actually, we are in superposition after all)
-        for j in range(len(binary)):
-            if binary[j] == '0':
-                insert_list.append(X(regular_qubits[j]))
-        # this_phase_gate = MCPhaseGate(value, 3, label="this_phase_gate")
-        # qc.this_phase_gate(0, 1, 2, 3)
-        # perform controlled phase shift (for more qubits probably possible using ControlledGate() and MatrixGate()
-        insert_list.append(cphase(inputs[index - 1])(*regular_qubits))
-        # "undo" the NOT-gates to get back to previous states = apply another not
-        for j in range(len(binary)):
-            if binary[j] == '0':
-                insert_list.append(X(regular_qubits[j]))
-        qc.append(insert_list, strategy=InsertStrategy.NEW_THEN_INLINE)
-    # loop over weights
-    for w in range(1, size):
-        insert_list = []
-        # index as binary number
-        binary = '{0:02b}'.format(w)
-        # get qubit at digit in binary state (positions of qubits : q0, q1, q2, q3) (figuratively, not actually, we are in superposition after all)
-        for j in range(len(binary)):
-            if binary[j] == '0':
-                insert_list.append(X(regular_qubits[j]))
-        # this_phase_gate = MCPhaseGate(value, 3, label="this_phase_gate")
-        # qc.this_phase_gate(0, 1, 2, 3)
-        # perform conjugate transpose controlled phase shift
-        insert_list.append(cphase(-1 * weights[w - 1])(*regular_qubits))
-        # "undo" the NOT-gates to get back to previous states = apply another not
-        for j in range(len(binary)):
-            if binary[j] == '0':
-                insert_list.append(X(regular_qubits[j]))
-        qc.append(insert_list, strategy=InsertStrategy.NEW_THEN_INLINE)
-    # apply Hadamard gate to all regular qubits
-    qc.append(H.on_each(*regular_qubits), strategy=InsertStrategy.NEW_THEN_INLINE)
-    # apply X gate to all regular qubits
-    qc.append(X.on_each(*regular_qubits), strategy=InsertStrategy.NEW_THEN_INLINE)
-    # collect combined state from all regular qubits with ancilla qubit using multi-controlled NOT-gate (Toffoli-Gate in case of 2 regular qubits)
-    qc.append(CCX(regular_qubits[0], regular_qubits[1], ancilla), strategy=InsertStrategy.NEW_THEN_INLINE)
-    # draw circuit
-    SVGCircuit(qc)
-    return qc
-# end circuit
-
 # 2 regular qubits, 1 ancilla
 number_qubits = 3
 number_regular_qubits = number_qubits - 1
 
 # specify parameters to set later with NN inputs and weights using Keras + TFQ
-regular_qubits = cirq.LineQubit.range(number_regular_qubits)
-ancilla = cirq.NamedQubit('ancilla')
-control_params = sympy.symbols('i0, i1, i2, i3, w0, w1, w2, w3')
+regular_qubits = [cirq.GridQubit(i, 0) for i in range(number_regular_qubits)]
+ancilla = cirq.GridQubit(number_regular_qubits, 0)
+control_params = sympy.symbols('i0, i1, i2, i3')
+control_params1 = sympy.symbols('w0, w1, w2, w3')
+
+# specify cirq circuit
+qc = cirq.Circuit()
+size = len(regular_qubits) ** 2
+# subtract first input from other inputs to save gates
+inputs = []
+for i in range(1, size):
+    inputs.append(control_params[i] - control_params[0])
+# do the same for weights
+weights = []
+for i in range(1, size):
+    weights.append(control_params1[i] - control_params1[0])
+# apply Hadamard gate to all regular qubits to create a superposition
+qc.append(H.on_each(*regular_qubits))
+# loop over all inputs in inputvector to encode them to the right base states using phase-shifts
+for index in range(1, size):
+    insert_list = []
+    # index as binary number
+    binary = '{0:02b}'.format(index)
+    # get qubit at digit in binary state (positions of qubits : q0, q1, q2, q3) (figuratively, not actually, we are in superposition after all)
+    for j in range(len(binary)):
+        if binary[j] == '0':
+            insert_list.append(X(regular_qubits[j]))
+    # this_phase_gate = MCPhaseGate(value, 3, label="this_phase_gate")
+    # qc.this_phase_gate(0, 1, 2, 3)
+    # perform controlled phase shift (for more qubits probably possible using ControlledGate() and MatrixGate()
+    insert_list.append(cphase(inputs[index - 1])(*regular_qubits))
+    # "undo" the NOT-gates to get back to previous states = apply another not
+    for j in range(len(binary)):
+        if binary[j] == '0':
+            insert_list.append(X(regular_qubits[j]))
+    qc.append(insert_list, strategy=InsertStrategy.NEW_THEN_INLINE)
+# loop over weights
+for w in range(1, size):
+    insert_list = []
+    # index as binary number
+    binary = '{0:02b}'.format(w)
+    # get qubit at digit in binary state (positions of qubits : q0, q1, q2, q3) (figuratively, not actually, we are in superposition after all)
+    for j in range(len(binary)):
+        if binary[j] == '0':
+            insert_list.append(X(regular_qubits[j]))
+    # this_phase_gate = MCPhaseGate(value, 3, label="this_phase_gate")
+    # qc.this_phase_gate(0, 1, 2, 3)
+    # perform conjugate transpose controlled phase shift
+    insert_list.append(cphase(-1 * weights[w - 1])(*regular_qubits))
+    # "undo" the NOT-gates to get back to previous states = apply another not
+    for j in range(len(binary)):
+        if binary[j] == '0':
+            insert_list.append(X(regular_qubits[j]))
+    qc.append(insert_list, strategy=InsertStrategy.NEW_THEN_INLINE)
+# apply Hadamard gate to all regular qubits
+qc.append(H.on_each(*regular_qubits), strategy=InsertStrategy.NEW_THEN_INLINE)
+# apply X gate to all regular qubits
+qc.append(X.on_each(*regular_qubits), strategy=InsertStrategy.NEW_THEN_INLINE)
+# collect combined state from all regular qubits with ancilla qubit using multi-controlled NOT-gate (Toffoli-Gate in case of 2 regular qubits)
+qc.append(CCX(regular_qubits[0], regular_qubits[1], ancilla), strategy=InsertStrategy.NEW_THEN_INLINE)
+# draw circuit
+SVGCircuit(qc)
+# end circuit
+
+# values to initialize the weights (?)
+int_values=np.random.rand((len(control_params1)))*np.pi
+
 measurement = [Z(ancilla)]
-fixed_circuit = my_circuit(regular_qubits, ancilla, control_params)
-qlayer = tfq.layers.Expectation()(
-    fixed_circuit,
-    symbol_names=control_params,
-    operators=measurement,
-    initializer=tf.keras.initializers.RandomUniform(0, 2 * np.pi))
 
-
-
-weight_shapes = {"weights": (size - 1)}
-# index of ancilla-qubit
-ancilla = number_qubits - 1
-
-
-@qml.qnode(dev)
-def qnode(inputs, weights):
-    inputs = inputs.numpy()
-    weights = weights.numpy()
-    input_list = []
-    for i in range(1, size):
-        input_list.append(inputs[i] - inputs[0])
-    # run qiskit circuit
-    qc.bind_parameters({theta1: input_list[0], theta2: input_list[1], theta3: input_list[2], w1: weights[0], w2: weights[1], w3: weights[2]})
-    qml.from_qiskit(qc)
-    # measure ancilla-qubit
-    # TODO: Try out whether expectation value (expval) or sample value (sample) of the qubit works better
-    return qml.expval(qml.PauliZ(ancilla))
-
-
-# create qlayer
-qlayer = qml.qnn.KerasLayer(qnode, weight_shapes, output_dim=1)
-qlayer.build(size)
-
+# This is needed because of Note here:
+# https://www.tensorflow.org/quantum/api_docs/python/tfq/layers/Expectation
+unused = tf.keras.Input(shape=(), dtype=tf.dtypes.string)
 
 x = layers.Dense(32, activation="relu")(all_features)
 x = layers.Dropout(0.5)(x)
 x = layers.Dense(4, activation="relu")(x)
 x = layers.Dropout(0.5)(x)
-output = qlayer(x)
-#output = layers.Dense(1, activation="sigmoid")(x)
-model = keras.Model(all_inputs, output)
+#expectation = SplitBackpropQ(control_params, control_params1, int_values, measurement)([unused, x])
+expectation = layers.Dense(1, activation="sigmoid")(x)
+model = keras.Model(inputs=[unused, all_inputs], outputs=expectation)
 model.compile("adam", "binary_crossentropy", metrics=["accuracy"])
 
 """

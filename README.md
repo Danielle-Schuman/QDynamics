@@ -18,7 +18,7 @@ To show that our Quantum Layer is most defininetely executable per se, we additi
 keras_example_tfq.ipynb (or, as a Google Collab: https://colab.research.google.com/drive/1ngD5YMM7EeWnWxXgMZfk8GgXPdhSoexI)
 
 ## Results
-For the classical version of the algorithm, the result is as follows:
+For the classical version of the algorithm, the result is shown below. For higher resolution, we may refer you to the .pdf version in our repository.
 
 ![Result](plot.png?raw=true "Experimental Result")
 

@@ -168,10 +168,10 @@ y_train = []
 for _ in range(100):
     x_new = []
     for i in range(32):
-        v = np.random.randint(200)
+        v = np.random.random_sample()
         x_new.append(v)
     x_train.append(x_new)
-    y_train.append(np.array(x_new).mean())
+    y_train.append(np.rint(np.array(x_new).mean()))
 x_train = tf.convert_to_tensor(x_train, tf.double)
 y_train = tf.convert_to_tensor(y_train, tf.double)
 
@@ -180,10 +180,10 @@ y_val = []
 for _ in range(100):
     x_new = []
     for i in range(32):
-        v = np.random.randint(200)
+        v = np.random.random_sample()
         x_new.append(v)
     x_val.append(x_new)
-    y_val.append(np.array(x_new).mean())
+    y_val.append(np.rint(np.array(x_new).mean()))
 x_val = tf.convert_to_tensor(x_val, tf.double)
 y_val = tf.convert_to_tensor(y_val, tf.double)
 
@@ -193,7 +193,7 @@ y_val = tf.convert_to_tensor(y_val, tf.double)
 n = x_train.shape[0]
 n_val = x_val.shape[0]
 
-model.fit(x=[tfq.convert_to_tensor([qc for _ in range(n)]), x_train], y=y_train, epochs=50, batch_size=32, validation_data=([tfq.convert_to_tensor([qc for _ in range(n_val)]), x_val], y_val), validation_batch_size=32)
+model.fit(x=[tfq.convert_to_tensor([qc for _ in range(n)]), x_train], y=y_train, epochs=100, batch_size=32, validation_data=([tfq.convert_to_tensor([qc for _ in range(n_val)]), x_val], y_val), validation_batch_size=32)
 
 """
 We quickly get to 80% validation accuracy.
@@ -208,7 +208,7 @@ of data, not single samples)
 2. Call `convert_to_tensor` on each feature
 """
 
-sample = tf.convert_to_tensor([[np.random.randint(200) for _ in range(32)]], tf.double)
+sample = tf.convert_to_tensor([[np.random.random_sample() for _ in range(32)]], tf.double)
 predictions = model.predict([tfq.convert_to_tensor([qc]), sample])
 
-print("Sample " + str(sample) + " label " + str(predictions))
+print("Sample " + str(sample) + " label " + str(predictions) + " should be " + str(np.rint(np.array(sample[0]).mean())))

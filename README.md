@@ -15,10 +15,10 @@ We implemented the QPINN using Tensorflow Quantum. Unfortunately, since this fra
 
 ## Quantum Layer
 To show that our Quantum Layer is most defininetely executable per se, we additionally provided a toy example using it in another neural network:
-keras_example_tfq.py
+keras_example_tfq.ipynb (or, as a Google Collab: https://colab.research.google.com/drive/1ngD5YMM7EeWnWxXgMZfk8GgXPdhSoexI)
 
 ## Results
-For the classical version of the algorithm,the result is as follows:
+For the classical version of the algorithm, the result is as follows:
 
 ![Result](plot.png?raw=true "Experimental Result")
 

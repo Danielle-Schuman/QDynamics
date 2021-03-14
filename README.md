@@ -22,3 +22,11 @@ For the classical version of the algorithm, the result is shown below. For highe
 
 ![Result](plot.png?raw=true "Experimental Result")
 
+## Installation
+Install requirements with:
+```
+pip -r requirements.txt
+
+
+
+
